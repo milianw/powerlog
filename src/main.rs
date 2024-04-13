@@ -215,7 +215,10 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     let client = reqwest::Client::builder()
-        .connect_timeout(Duration::new(5, 0))
+        .timeout(Duration::new(5, 0))
+        .gzip(true)
+        .brotli(true)
+        .deflate(true)
         .build()?;
 
     let cloud_cover = weather::cloud_cover(&client);
