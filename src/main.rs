@@ -182,7 +182,7 @@ mod inverter {
         #[serde(rename = "0")]
         On,
         #[serde(rename = "1")]
-        Off
+        Off,
     }
 
     #[derive(Deserialize, Debug)]
