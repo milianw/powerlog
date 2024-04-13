@@ -241,6 +241,23 @@ mod inverter {
             assert_eq!(data.channel2.energy_generation_startup, 5_f64);
             assert_eq!(data.channel2.energy_generation_lifetime, 6_f64);
         }
+
+        #[test]
+        fn parse_max_power() {
+            let response = r#"
+{
+    "data": {
+        "maxPower": "600"
+    },
+    "message": "SUCCESS",
+    "deviceId":"E07000000001"
+}
+            "#;
+
+            let response: crate::inverter::MaxPowerResponse =
+                serde_json::from_str(response).unwrap();
+            assert_eq!(response.data.maxPower.parse::<f64>().unwrap(), 600_f64);
+        }
     }
 }
 
