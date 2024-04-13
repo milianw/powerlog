@@ -4,7 +4,7 @@ mod config {
     const LATITUDE: &str = "52.500";
     const LONGITUDE: &str = "13.493";
     const PIRATEWEATHER_API_KEY: &str = "...";
-    const INVERTER_IP: &str = "192.168.178.63";
+    const INVERTER_IP: &str = "192.168.178.150";
     const INVERTER_URL: &str = formatcp!("http://{INVERTER_IP}:8050");
 
     pub const PIRATEWEATHER_URL : &str = formatcp!("https://api.pirateweather.net/forecast/{PIRATEWEATHER_API_KEY}/{LATITUDE},{LONGITUDE}?units=si&exclude=minutely,hourly,daily,alerts");
