@@ -181,7 +181,7 @@ mod inverter {
         Ok(data.maxPower.parse()?)
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, Eq, PartialEq)]
     pub enum Status {
         #[serde(rename = "0")]
         On,
@@ -257,6 +257,22 @@ mod inverter {
             let response: crate::inverter::MaxPowerResponse =
                 serde_json::from_str(response).unwrap();
             assert_eq!(response.data.maxPower.parse::<f64>().unwrap(), 600_f64);
+        }
+
+        #[test]
+        fn parse_on_off() {
+            let response = r#"
+{
+    "data": {
+        "status": "0"
+    },
+    "message": "SUCCESS",
+    "deviceId":"E07000000001"
+}
+            "#;
+
+            let response: crate::inverter::OnOffResponse = serde_json::from_str(response).unwrap();
+            assert_eq!(response.data.status, crate::inverter::Status::On);
         }
     }
 }
