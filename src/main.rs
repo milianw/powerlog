@@ -105,15 +105,15 @@ mod inverter {
 
     #[derive(Debug)]
     pub struct OutputChannel {
-        power: f64,
-        energy_generation_startup: f64,
-        energy_generation_lifetime: f64,
+        pub power: f64,
+        pub energy_generation_startup: f64,
+        pub energy_generation_lifetime: f64,
     }
 
     #[derive(Debug)]
     pub struct OutputData {
-        channel1: OutputChannel,
-        channel2: OutputChannel,
+        pub channel1: OutputChannel,
+        pub channel2: OutputChannel,
     }
 
     #[derive(Deserialize, Debug)]
@@ -277,12 +277,91 @@ mod inverter {
     }
 }
 
+mod db {
+    use anyhow::Result;
+    use sea_orm::ConnectionTrait;
+
+    mod powerlog {
+        use sea_orm::entity::prelude::*;
+        #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+        #[sea_orm(table_name = "powerlog")]
+        pub struct Model {
+            #[sea_orm(primary_key)]
+            pub id: i32,
+
+            pub time: time::OffsetDateTime,
+
+            pub cloud_cover: f32,
+
+            pub power_ch1: f32,
+            pub power_ch2: f32,
+
+            pub energy_today_ch1: f32,
+            pub energy_today_ch2: f32,
+
+            pub energy_total_ch1: f32,
+            pub energy_total_ch2: f32,
+
+            pub max_power: f32,
+        }
+
+        #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+        pub enum Relation {}
+
+        impl ActiveModelBehavior for ActiveModel {}
+    }
+
+    pub async fn setup() -> Result<sea_orm::DatabaseConnection> {
+        let db = sea_orm::Database::connect("sqlite://powerlog.sqlite3?mode=rwc").await?;
+
+        let builder = db.get_database_backend();
+        let schema = sea_orm::Schema::new(builder);
+        let create_table = builder.build(
+            schema
+                .create_table_from_entity(powerlog::Entity)
+                .if_not_exists(),
+        );
+        db.execute(create_table).await?;
+
+        Ok(db)
+    }
+
+    pub async fn insert(
+        db: &sea_orm::DatabaseConnection,
+        cloud_cover: f64,
+        output_data: crate::inverter::OutputData,
+        max_power: f64,
+    ) -> Result<()> {
+        use sea_orm::ActiveValue::{NotSet, Set};
+
+        let row = powerlog::ActiveModel {
+            id: NotSet,
+            time: Set(time::OffsetDateTime::now_utc()),
+            cloud_cover: Set(cloud_cover as f32),
+            power_ch1: Set(output_data.channel1.power as f32),
+            power_ch2: Set(output_data.channel2.power as f32),
+            energy_today_ch1: Set(output_data.channel1.energy_generation_startup as f32),
+            energy_today_ch2: Set(output_data.channel2.energy_generation_startup as f32),
+            energy_total_ch1: Set(output_data.channel1.energy_generation_lifetime as f32),
+            energy_total_ch2: Set(output_data.channel2.energy_generation_lifetime as f32),
+            max_power: Set(max_power as f32),
+        };
+
+        use sea_orm::ActiveModelTrait;
+        row.insert(db).await?;
+
+        Ok(())
+    }
+}
+
 use anyhow::Result;
 use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
+
+    let db = db::setup();
 
     // setup http clients
     let client = reqwest::Client::builder()
@@ -317,6 +396,10 @@ async fn main() -> Result<()> {
     let max_power = max_power?;
     let on_off = on_off?;
     println!("cover: {cloud_cover}, output data: {output_data:?}, max power: {max_power} on/off: {on_off:?}");
+
+    // insert data
+    let db = db.await?;
+    db::insert(&db, cloud_cover, output_data, max_power).await?;
 
     Ok(())
 }
