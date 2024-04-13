@@ -237,7 +237,9 @@ async fn main() -> Result<()> {
     });
 
     // await all requests
-    let cloud_cover = weather_request.await??;
+    // gracefully handle failures of pirateweather access
+    let cloud_cover = weather_request.await?.unwrap_or(0_f64);
+    // don't do anything if inverter read outs fail which happens at night time when the device is off
     let (output_data, max_power, on_off) = inverter_requests.await?;
 
     // handle accumulated data
