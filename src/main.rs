@@ -212,6 +212,8 @@ use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    env_logger::init();
+
     let client = reqwest::Client::builder()
         .connect_timeout(Duration::new(5, 0))
         .build()?;
