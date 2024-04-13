@@ -214,6 +214,7 @@ use std::time::Duration;
 async fn main() -> Result<()> {
     env_logger::init();
 
+    // setup http clients
     let client = reqwest::Client::builder()
         .timeout(Duration::new(5, 0))
         .gzip(true)
@@ -221,15 +222,28 @@ async fn main() -> Result<()> {
         .deflate(true)
         .build()?;
 
-    let cloud_cover = weather::cloud_cover(&client);
-    let output_data = inverter::output_data(&client);
-    let max_power = inverter::max_power(&client);
-    let on_off = inverter::on_off(&client);
+    // access weather API
+    let client_copy = client.clone();
+    let weather_request = tokio::spawn(async move { weather::cloud_cover(&client_copy).await });
 
-    let cloud_cover = cloud_cover.await?;
-    let output_data = output_data.await?;
-    let max_power = max_power.await?;
-    let on_off = on_off.await?;
+    // access inverter API
+    let client_copy = client.clone();
+    let inverter_requests = tokio::spawn(async move {
+        (
+            inverter::output_data(&client_copy).await,
+            inverter::max_power(&client_copy).await,
+            inverter::on_off(&client_copy).await,
+        )
+    });
+
+    // await all requests
+    let cloud_cover = weather_request.await??;
+    let (output_data, max_power, on_off) = inverter_requests.await?;
+
+    // handle accumulated data
+    let output_data = output_data?;
+    let max_power = max_power?;
+    let on_off = on_off?;
     println!("cover: {cloud_cover}, output data: {output_data:?}, max power: {max_power} on/off: {on_off:?}");
 
     Ok(())
