@@ -178,16 +178,23 @@ mod inverter {
     }
 
     #[derive(Deserialize, Debug)]
+    pub enum Status {
+        #[serde(rename = "0")]
+        On,
+        #[serde(rename = "1")]
+        Off
+    }
+
+    #[derive(Deserialize, Debug)]
     struct OnOff {
-        status: String,
+        status: Status,
     }
 
     #[derive(Deserialize, Debug)]
     struct OnOffResponse {
         data: OnOff,
     }
-
-    pub async fn on_off(client: &reqwest::Client) -> Result<bool> {
+    pub async fn on_off(client: &reqwest::Client) -> Result<Status> {
         let data = client
             .get(config::INVERTER_URL_GET_ONOFF)
             .send()
@@ -196,7 +203,7 @@ mod inverter {
             .await?
             .data;
 
-        Ok(data.status.parse()?)
+        Ok(data.status)
     }
 }
 
@@ -218,7 +225,7 @@ async fn main() -> Result<()> {
     let output_data = output_data.await?;
     let max_power = max_power.await?;
     let on_off = on_off.await?;
-    println!("cover: {cloud_cover}, output data: {output_data:?}, max power: {max_power} on/off: {on_off}");
+    println!("cover: {cloud_cover}, output data: {output_data:?}, max power: {max_power} on/off: {on_off:?}");
 
     Ok(())
 }
