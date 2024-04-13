@@ -131,16 +131,8 @@ mod inverter {
         data: RawOutputData,
     }
 
-    pub async fn output_data(client: &reqwest::Client) -> Result<OutputData> {
-        let data = client
-            .get(config::INVERTER_URL_GET_OUTPUTDATA)
-            .send()
-            .await?
-            .json::<OutputDataResponse>()
-            .await?
-            .data;
-
-        Ok(OutputData {
+    fn to_output_data(data: RawOutputData) -> OutputData {
+        OutputData {
             channel1: OutputChannel {
                 power: data.p1,
                 energy_generation_startup: data.e1,
@@ -151,7 +143,19 @@ mod inverter {
                 energy_generation_startup: data.e2,
                 energy_generation_lifetime: data.te2,
             },
-        })
+        }
+    }
+
+    pub async fn output_data(client: &reqwest::Client) -> Result<OutputData> {
+        let data = client
+            .get(config::INVERTER_URL_GET_OUTPUTDATA)
+            .send()
+            .await?
+            .json::<OutputDataResponse>()
+            .await?
+            .data;
+
+        Ok(to_output_data(data))
     }
 
     #[derive(Deserialize, Debug)]
@@ -204,6 +208,39 @@ mod inverter {
             .data;
 
         Ok(data.status)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use serde_json;
+
+        #[test]
+        fn parse_output_data() {
+            let response = r#"
+{
+    "data": {
+        "p1": 1,
+        "e1": 2,
+        "te1": 3,
+        "p2": 4,
+        "e2": 5,
+        "te2": 6
+    },
+    "message": "SUCCESS",
+    "deviceId":"E07000000001"
+}
+            "#;
+
+            let response: crate::inverter::OutputDataResponse =
+                serde_json::from_str(response).unwrap();
+            let data = crate::inverter::to_output_data(response.data);
+            assert_eq!(data.channel1.power, 1_f64);
+            assert_eq!(data.channel1.energy_generation_startup, 2_f64);
+            assert_eq!(data.channel1.energy_generation_lifetime, 3_f64);
+            assert_eq!(data.channel2.power, 4_f64);
+            assert_eq!(data.channel2.energy_generation_startup, 5_f64);
+            assert_eq!(data.channel2.energy_generation_lifetime, 6_f64);
+        }
     }
 }
 
