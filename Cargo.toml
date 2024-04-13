@@ -12,3 +12,4 @@ const_format = "0.2.32"
 serde = { version = "1.0.197", features = ["derive"] }
 anyhow = { version = "1.0.82", features = ["backtrace"] }
 thiserror = "1.0.58"
+serde_json = "1.0.115"

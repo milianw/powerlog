@@ -38,6 +38,64 @@ mod weather {
             .await?;
         Ok(response.currently.cloudCover)
     }
+
+    #[cfg(test)]
+    mod tests {
+        use serde_json;
+
+        #[test]
+        fn parse_cloud_cover() {
+            let response = r#"
+{
+  "latitude": 52.5,
+  "longitude": 13.493,
+  "timezone": "Europe/Berlin",
+  "offset": 2.0,
+  "elevation": 37,
+  "currently": {
+    "time": 1712930580,
+    "summary": "Cloudy",
+    "icon": "cloudy",
+    "nearestStormDistance": 0,
+    "nearestStormBearing": 0,
+    "precipIntensity": 0.0,
+    "precipProbability": 0.0,
+    "precipIntensityError": 0.0,
+    "precipType": "none",
+    "temperature": 18.52,
+    "apparentTemperature": 19.63,
+    "dewPoint": 9.63,
+    "humidity": 0.56,
+    "pressure": 1021.98,
+    "windSpeed": 5.09,
+    "windGust": 7.88,
+    "windBearing": 255,
+    "cloudCover": 0.12,
+    "uvIndex": 2.4,
+    "visibility": 16.09,
+    "ozone": 328.39
+  },
+  "flags": {
+    "sources": [
+      "ETOPO1",
+      "gfs",
+      "gefs"
+    ],
+    "sourceTimes": {
+      "gfs": "2024-04-12 06:00:00",
+      "gefs": "2024-04-12 06:00:00"
+    },
+    "nearest-station": 0,
+    "units": "si",
+    "version": "V1.5.6"
+  }
+}
+            "#;
+
+            let weather: crate::weather::Weather = serde_json::from_str(response).unwrap();
+            assert_eq!(weather.currently.cloudCover, 0.12);
+        }
+    }
 }
 
 mod inverter {

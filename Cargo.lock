@@ -696,6 +696,7 @@ dependencies = [
  "const_format",
  "reqwest",
  "serde",
+ "serde_json",
  "thiserror",
  "tokio",
 ]
