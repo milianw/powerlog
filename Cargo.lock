@@ -1533,6 +1533,7 @@ dependencies = [
  "sea-orm",
  "serde",
  "serde_json",
+ "sun",
  "thiserror",
  "time",
  "tokio",
@@ -2373,6 +2374,12 @@ name = "subtle"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
+
+[[package]]
+name = "sun"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dfc29238f46800dc0e29dbc0b3cab5e745dd40560220f759e30d298740781b59"
 
 [[package]]
 name = "syn"

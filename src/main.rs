@@ -1,20 +1,11 @@
 mod config {
-    use const_format::formatcp;
-
-    const LATITUDE: &str = "52.500";
-    const LONGITUDE: &str = "13.493";
-    const PIRATEWEATHER_API_KEY: &str = "...";
-    const INVERTER_IP: &str = "192.168.178.150";
-    const INVERTER_URL: &str = formatcp!("http://{INVERTER_IP}:8050");
-
-    pub const PIRATEWEATHER_URL : &str = formatcp!("https://api.pirateweather.net/forecast/{PIRATEWEATHER_API_KEY}/{LATITUDE},{LONGITUDE}?units=si&exclude=minutely,hourly,daily,alerts");
-    pub const INVERTER_URL_GET_OUTPUTDATA: &str = formatcp!("{INVERTER_URL}/getOutputData");
-    pub const INVERTER_URL_GET_MAXPOWER: &str = formatcp!("{INVERTER_URL}/getMaxPower");
-    pub const INVERTER_URL_GET_ONOFF: &str = formatcp!("{INVERTER_URL}/getOnOff");
+    pub const LATITUDE: f64 = 52.500;
+    pub const LONGITUDE: f64 = 13.493;
+    pub const PIRATEWEATHER_API_KEY: &str = "...";
+    pub const INVERTER_IP: &str = "192.168.178.150";
 }
 
 mod weather {
-    use crate::config;
     use anyhow::Result;
     use serde::Deserialize;
 
@@ -30,8 +21,9 @@ mod weather {
     }
 
     pub async fn cloud_cover(client: &reqwest::Client) -> Result<f64> {
+        let pirateweather_url = format!("https://api.pirateweather.net/forecast/{}/{},{}?units=si&exclude=minutely,hourly,daily,alerts", crate::config::PIRATEWEATHER_API_KEY, crate::config::LATITUDE, crate::config::LONGITUDE);
         let response = client
-            .get(config::PIRATEWEATHER_URL)
+            .get(pirateweather_url)
             .send()
             .await?
             .json::<Weather>()
@@ -99,9 +91,14 @@ mod weather {
 }
 
 mod inverter {
-    use crate::config;
     use anyhow::Result;
+    use const_format::formatcp;
     use serde::Deserialize;
+
+    const INVERTER_URL: &str = formatcp!("http://{}:8050", crate::config::INVERTER_IP);
+    const INVERTER_URL_GET_OUTPUTDATA: &str = formatcp!("{INVERTER_URL}/getOutputData");
+    const INVERTER_URL_GET_MAXPOWER: &str = formatcp!("{INVERTER_URL}/getMaxPower");
+    const INVERTER_URL_GET_ONOFF: &str = formatcp!("{INVERTER_URL}/getOnOff");
 
     #[derive(Debug)]
     pub struct OutputChannel {
@@ -148,7 +145,7 @@ mod inverter {
 
     pub async fn output_data(client: &reqwest::Client) -> Result<OutputData> {
         let data = client
-            .get(config::INVERTER_URL_GET_OUTPUTDATA)
+            .get(INVERTER_URL_GET_OUTPUTDATA)
             .send()
             .await?
             .json::<OutputDataResponse>()
@@ -171,7 +168,7 @@ mod inverter {
 
     pub async fn max_power(client: &reqwest::Client) -> Result<f64> {
         let data = client
-            .get(config::INVERTER_URL_GET_MAXPOWER)
+            .get(INVERTER_URL_GET_MAXPOWER)
             .send()
             .await?
             .json::<MaxPowerResponse>()
@@ -200,7 +197,7 @@ mod inverter {
     }
     pub async fn on_off(client: &reqwest::Client) -> Result<Status> {
         let data = client
-            .get(config::INVERTER_URL_GET_ONOFF)
+            .get(INVERTER_URL_GET_ONOFF)
             .send()
             .await?
             .json::<OnOffResponse>()
@@ -277,6 +274,17 @@ mod inverter {
     }
 }
 
+mod sun {
+    use sun;
+    pub fn position(time: time::OffsetDateTime) -> sun::Position {
+        sun::pos(
+            time.unix_timestamp() * 1000,
+            crate::config::LATITUDE,
+            crate::config::LONGITUDE,
+        )
+    }
+}
+
 mod db {
     use anyhow::Result;
     use sea_orm::ConnectionTrait;
@@ -292,6 +300,8 @@ mod db {
             pub time: time::OffsetDateTime,
 
             pub cloud_cover: f32,
+            pub sun_azimuth: f32,
+            pub sun_altitude: f32,
 
             pub power_ch1: f32,
             pub power_ch2: f32,
@@ -329,15 +339,19 @@ mod db {
     pub async fn insert(
         db: &sea_orm::DatabaseConnection,
         cloud_cover: f64,
+        sunpos: sun::Position,
         output_data: crate::inverter::OutputData,
         max_power: f64,
+        time: time::OffsetDateTime,
     ) -> Result<()> {
         use sea_orm::ActiveValue::{NotSet, Set};
 
         let row = powerlog::ActiveModel {
             id: NotSet,
-            time: Set(time::OffsetDateTime::now_utc()),
+            time: Set(time),
             cloud_cover: Set(cloud_cover as f32),
+            sun_azimuth: Set(sunpos.azimuth as f32),
+            sun_altitude: Set(sunpos.altitude as f32),
             power_ch1: Set(output_data.channel1.power as f32),
             power_ch2: Set(output_data.channel2.power as f32),
             energy_today_ch1: Set(output_data.channel1.energy_generation_startup as f32),
@@ -360,6 +374,8 @@ use std::time::Duration;
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
+
+    let time = time::OffsetDateTime::now_utc();
 
     let db = db::setup();
 
@@ -404,11 +420,12 @@ async fn main() -> Result<()> {
     // handle accumulated data
     let output_data = output_data?;
     let max_power = max_power?;
-    println!("cover: {cloud_cover}, output data: {output_data:?}, max power: {max_power} on/off: {on_off:?}");
+    let sunpos = sun::position(time);
+    println!("cover: {cloud_cover}, output data: {output_data:?}, max power: {max_power} on/off: {on_off:?}, sun: {sunpos:?}");
 
     // insert data
     let db = db.await?;
-    db::insert(&db, cloud_cover, output_data, max_power).await?;
+    db::insert(&db, cloud_cover, sunpos, output_data, max_power, time).await?;
 
     Ok(())
 }
