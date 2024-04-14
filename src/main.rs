@@ -371,6 +371,9 @@ async fn main() -> Result<()> {
         .deflate(true)
         .build()?;
 
+    // fail early when the inverter is offline
+    let on_off = inverter::on_off(&client).await?;
+
     // access weather API
     let client_copy = client.clone();
     let weather_request = tokio::spawn(async move { weather::cloud_cover(&client_copy).await });
@@ -381,7 +384,6 @@ async fn main() -> Result<()> {
         (
             inverter::output_data(&client_copy).await,
             inverter::max_power(&client_copy).await,
-            inverter::on_off(&client_copy).await,
         )
     });
 
@@ -397,12 +399,11 @@ async fn main() -> Result<()> {
     };
 
     // don't do anything if inverter read outs fail which happens at night time when the device is off
-    let (output_data, max_power, on_off) = inverter_requests.await?;
+    let (output_data, max_power) = inverter_requests.await?;
 
     // handle accumulated data
     let output_data = output_data?;
     let max_power = max_power?;
-    let on_off = on_off?;
     println!("cover: {cloud_cover}, output data: {output_data:?}, max power: {max_power} on/off: {on_off:?}");
 
     // insert data
