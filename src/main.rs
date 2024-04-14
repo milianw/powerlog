@@ -386,8 +386,16 @@ async fn main() -> Result<()> {
     });
 
     // await all requests
+
     // gracefully handle failures of pirateweather access
-    let cloud_cover = weather_request.await?.unwrap_or(0_f64);
+    let cloud_cover = match weather_request.await? {
+        Ok(cloud_cover) => cloud_cover,
+        Err(err) => {
+            eprintln!("{:?}", err);
+            0.
+        }
+    };
+
     // don't do anything if inverter read outs fail which happens at night time when the device is off
     let (output_data, max_power, on_off) = inverter_requests.await?;
 
