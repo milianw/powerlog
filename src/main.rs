@@ -33,8 +33,6 @@ mod weather {
 
     #[cfg(test)]
     mod tests {
-        use serde_json;
-
         #[test]
         fn parse_cloud_cover() {
             let response = r#"
@@ -275,7 +273,6 @@ mod inverter {
 }
 
 mod sun {
-    use sun;
     pub fn position(time: time::OffsetDateTime) -> sun::Position {
         sun::pos(
             time.unix_timestamp() * 1000,
