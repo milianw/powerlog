@@ -378,7 +378,7 @@ async fn main() -> Result<()> {
 
     // setup http clients
     let client = reqwest::Client::builder()
-        .timeout(Duration::new(5, 0))
+        .timeout(Duration::new(10, 0))
         .gzip(true)
         .brotli(true)
         .deflate(true)
