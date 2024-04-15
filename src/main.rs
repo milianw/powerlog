@@ -207,8 +207,6 @@ mod inverter {
 
     #[cfg(test)]
     mod tests {
-        use serde_json;
-
         #[test]
         fn parse_output_data() {
             let response = r#"
