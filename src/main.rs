@@ -355,10 +355,17 @@ async fn main() -> Result<()> {
         .build()?;
 
     // fail early when the inverter is offline
-    let on_off_response = inverter::on_off(&client).await;
-    let Ok(on_off) = on_off_response else {
-        eprintln!("inverter is offline: {:?}", on_off_response.err().unwrap());
-        return Ok(());
+    let on_off = match inverter::on_off(&client).await {
+        Err(e) => {
+            if let Some(e) = e.downcast_ref::<reqwest::Error>() {
+                if e.is_connect() {
+                    println!("inverter is offline: {:?}", e);
+                    return Ok(());
+                }
+            }
+            panic!("inverter request failure: {:?}", e);
+        }
+        Ok(on_off) => on_off,
     };
 
     // access inverter API
