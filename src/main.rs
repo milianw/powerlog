@@ -1,7 +1,6 @@
 mod config {
     pub const LATITUDE: f64 = 52.500;
     pub const LONGITUDE: f64 = 13.493;
-    pub const PIRATEWEATHER_API_KEY: &str = "...";
     pub const INVERTER_IP: &str = "192.168.178.150";
 }
 
@@ -10,25 +9,34 @@ mod weather {
     use serde::Deserialize;
 
     #[derive(Deserialize, Debug)]
-    struct Weather {
-        currently: CurrentWeather,
+    struct CurrentWeatherResponse {
+        current: CurrentWeather,
     }
 
     #[derive(Deserialize, Debug)]
-    #[allow(non_snake_case)]
-    struct CurrentWeather {
-        cloudCover: f64,
+    pub struct CurrentWeather {
+        pub cloud_cover: f32,
+        pub shortwave_radiation_instant: f32,
+        pub direct_radiation_instant: f32,
+        pub diffuse_radiation_instant: f32,
+        pub direct_normal_irradiance_instant: f32,
+        pub global_tilted_irradiance_instant: f32,
+        pub terrestrial_radiation_instant: f32,
     }
 
-    pub async fn cloud_cover(client: &reqwest::Client) -> Result<f64> {
-        let pirateweather_url = format!("https://api.pirateweather.net/forecast/{}/{},{}?units=si&exclude=minutely,hourly,daily,alerts", crate::config::PIRATEWEATHER_API_KEY, crate::config::LATITUDE, crate::config::LONGITUDE);
+    pub async fn query(client: &reqwest::Client) -> Result<CurrentWeather> {
+        let weather_api_url = format!(
+            "https://api.open-meteo.com/v1/dwd-icon?latitude={}&longitude={}&current=cloud_cover,shortwave_radiation_instant,direct_radiation_instant,diffuse_radiation_instant,direct_normal_irradiance_instant,global_tilted_irradiance_instant,terrestrial_radiation_instant&tilt=90",
+            crate::config::LATITUDE,
+            crate::config::LONGITUDE
+        );
         let response = client
-            .get(pirateweather_url)
+            .get(weather_api_url)
             .send()
             .await?
-            .json::<Weather>()
+            .json::<CurrentWeatherResponse>()
             .await?;
-        Ok(response.currently.cloudCover)
+        Ok(response.current)
     }
 
     #[cfg(test)]
@@ -36,54 +44,18 @@ mod weather {
         #[test]
         fn parse_cloud_cover() {
             let response = r#"
-{
-  "latitude": 52.5,
-  "longitude": 13.493,
-  "timezone": "Europe/Berlin",
-  "offset": 2.0,
-  "elevation": 37,
-  "currently": {
-    "time": 1712930580,
-    "summary": "Cloudy",
-    "icon": "cloudy",
-    "nearestStormDistance": 0,
-    "nearestStormBearing": 0,
-    "precipIntensity": 0.0,
-    "precipProbability": 0.0,
-    "precipIntensityError": 0.0,
-    "precipType": "none",
-    "temperature": 18.52,
-    "apparentTemperature": 19.63,
-    "dewPoint": 9.63,
-    "humidity": 0.56,
-    "pressure": 1021.98,
-    "windSpeed": 5.09,
-    "windGust": 7.88,
-    "windBearing": 255,
-    "cloudCover": 0.12,
-    "uvIndex": 2.4,
-    "visibility": 16.09,
-    "ozone": 328.39
-  },
-  "flags": {
-    "sources": [
-      "ETOPO1",
-      "gfs",
-      "gefs"
-    ],
-    "sourceTimes": {
-      "gfs": "2024-04-12 06:00:00",
-      "gefs": "2024-04-12 06:00:00"
-    },
-    "nearest-station": 0,
-    "units": "si",
-    "version": "V1.5.6"
-  }
-}
+{"latitude":52.52,"longitude":13.419998,"generationtime_ms":0.05900859832763672,"utc_offset_seconds":0,"timezone":"GMT","timezone_abbreviation":"GMT","elevation":38.0,"current_units":{"time":"iso8601","interval":"seconds","cloud_cover":"%","shortwave_radiation_instant":"W/m²","direct_radiation_instant":"W/m²","diffuse_radiation_instant":"W/m²","direct_normal_irradiance_instant":"W/m²","global_tilted_irradiance_instant":"W/m²","terrestrial_radiation_instant":"W/m²"},"current":{"time":"2024-04-16T09:30","interval":900,"cloud_cover":100,"shortwave_radiation_instant":303.7,"direct_radiation_instant":123.5,"diffuse_radiation_instant":180.2,"direct_normal_irradiance_instant":179.1,"global_tilted_irradiance_instant":227.9,"terrestrial_radiation_instant":937.0}}
             "#;
 
-            let weather: crate::weather::Weather = serde_json::from_str(response).unwrap();
-            assert_eq!(weather.currently.cloudCover, 0.12);
+            let weather: crate::weather::CurrentWeatherResponse =
+                serde_json::from_str(response).unwrap();
+            assert_eq!(weather.current.cloud_cover, 100.0);
+            assert_eq!(weather.current.shortwave_radiation_instant, 303.7);
+            assert_eq!(weather.current.direct_radiation_instant, 123.5);
+            assert_eq!(weather.current.diffuse_radiation_instant, 180.2);
+            assert_eq!(weather.current.direct_normal_irradiance_instant, 179.1);
+            assert_eq!(weather.current.global_tilted_irradiance_instant, 227.9);
+            assert_eq!(weather.current.terrestrial_radiation_instant, 937.0);
         }
     }
 }
@@ -333,7 +305,7 @@ mod db {
 
     pub async fn insert(
         db: &sea_orm::DatabaseConnection,
-        cloud_cover: f64,
+        cloud_cover: f32,
         sunpos: sun::Position,
         output_data: crate::inverter::OutputData,
         max_power: f64,
@@ -344,7 +316,7 @@ mod db {
         let row = powerlog::ActiveModel {
             id: NotSet,
             time: Set(time),
-            cloud_cover: Set(cloud_cover as f32),
+            cloud_cover: Set(cloud_cover),
             sun_azimuth: Set(sunpos.azimuth as f32),
             sun_altitude: Set(sunpos.altitude as f32),
             power_ch1: Set(output_data.channel1.power as f32),
@@ -389,10 +361,6 @@ async fn main() -> Result<()> {
         return Ok(());
     };
 
-    // access weather API
-    let client_copy = client.clone();
-    let weather_request = tokio::spawn(async move { weather::cloud_cover(&client_copy).await });
-
     // access inverter API
     let client_copy = client.clone();
     let inverter_requests = tokio::spawn(async move {
@@ -402,11 +370,15 @@ async fn main() -> Result<()> {
         )
     });
 
+    // access weather API
+    let client_copy = client.clone();
+    let weather_request = tokio::spawn(async move { weather::query(&client_copy).await });
+
     // await all requests
 
-    // gracefully handle failures of pirateweather access
+    // gracefully handle failures of weather api access
     let cloud_cover = match weather_request.await? {
-        Ok(cloud_cover) => cloud_cover,
+        Ok(weather) => weather.cloud_cover / 100.0,
         Err(err) => {
             eprintln!("{:?}", err);
             0.
