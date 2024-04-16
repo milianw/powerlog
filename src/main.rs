@@ -16,12 +16,13 @@ mod weather {
     #[derive(Deserialize, Debug)]
     pub struct CurrentWeather {
         pub cloud_cover: f32,
-        pub shortwave_radiation_instant: f32,
+
+        pub terrestrial_radiation_instant: f32,
         pub direct_radiation_instant: f32,
         pub diffuse_radiation_instant: f32,
+        pub shortwave_radiation_instant: f32,
         pub direct_normal_irradiance_instant: f32,
         pub global_tilted_irradiance_instant: f32,
-        pub terrestrial_radiation_instant: f32,
     }
 
     pub async fn query(client: &reqwest::Client) -> Result<CurrentWeather> {
@@ -266,10 +267,6 @@ mod db {
 
             pub time: time::OffsetDateTime,
 
-            pub cloud_cover: f32,
-            pub sun_azimuth: f32,
-            pub sun_altitude: f32,
-
             pub power_ch1: f32,
             pub power_ch2: f32,
 
@@ -280,6 +277,25 @@ mod db {
             pub energy_total_ch2: f32,
 
             pub max_power: f32,
+
+            #[sea_orm(nullable)]
+            pub cloud_cover: f32,
+
+            #[sea_orm(nullable)]
+            pub terrestrial_radiation: f32,
+            #[sea_orm(nullable)]
+            pub direct_radiation: f32,
+            #[sea_orm(nullable)]
+            pub diffuse_radiation: f32,
+            #[sea_orm(nullable)]
+            pub shortwave_radiation: f32,
+            #[sea_orm(nullable)]
+            pub direct_normal_irradiance: f32,
+            #[sea_orm(nullable)]
+            pub global_tilted_irradiance: f32,
+
+            pub sun_azimuth: f32,
+            pub sun_altitude: f32,
         }
 
         #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -305,7 +321,7 @@ mod db {
 
     pub async fn insert(
         db: &sea_orm::DatabaseConnection,
-        cloud_cover: f32,
+        weather: Option<crate::weather::CurrentWeather>,
         sunpos: sun::Position,
         output_data: crate::inverter::OutputData,
         max_power: f64,
@@ -316,9 +332,7 @@ mod db {
         let row = powerlog::ActiveModel {
             id: NotSet,
             time: Set(time),
-            cloud_cover: Set(cloud_cover),
-            sun_azimuth: Set(sunpos.azimuth as f32),
-            sun_altitude: Set(sunpos.altitude as f32),
+
             power_ch1: Set(output_data.channel1.power as f32),
             power_ch2: Set(output_data.channel2.power as f32),
             energy_today_ch1: Set(output_data.channel1.energy_generation_startup as f32),
@@ -326,6 +340,32 @@ mod db {
             energy_total_ch1: Set(output_data.channel1.energy_generation_lifetime as f32),
             energy_total_ch2: Set(output_data.channel2.energy_generation_lifetime as f32),
             max_power: Set(max_power as f32),
+
+            cloud_cover: weather
+                .as_ref()
+                .map_or(NotSet, |w| Set(w.cloud_cover / 100.0)),
+
+            terrestrial_radiation: weather
+                .as_ref()
+                .map_or(NotSet, |w| Set(w.terrestrial_radiation_instant)),
+            direct_radiation: weather
+                .as_ref()
+                .map_or(NotSet, |w| Set(w.direct_radiation_instant)),
+            diffuse_radiation: weather
+                .as_ref()
+                .map_or(NotSet, |w| Set(w.diffuse_radiation_instant)),
+            shortwave_radiation: weather
+                .as_ref()
+                .map_or(NotSet, |w| Set(w.shortwave_radiation_instant)),
+            direct_normal_irradiance: weather
+                .as_ref()
+                .map_or(NotSet, |w| Set(w.direct_normal_irradiance_instant)),
+            global_tilted_irradiance: weather
+                .as_ref()
+                .map_or(NotSet, |w| Set(w.global_tilted_irradiance_instant)),
+
+            sun_azimuth: Set(sunpos.azimuth as f32),
+            sun_altitude: Set(sunpos.altitude as f32),
         };
 
         use sea_orm::ActiveModelTrait;
@@ -384,11 +424,11 @@ async fn main() -> Result<()> {
     // await all requests
 
     // gracefully handle failures of weather api access
-    let cloud_cover = match weather_request.await? {
-        Ok(weather) => weather.cloud_cover / 100.0,
+    let weather = match weather_request.await? {
+        Ok(weather) => Some(weather),
         Err(err) => {
             eprintln!("{:?}", err);
-            0.
+            None
         }
     };
 
@@ -399,11 +439,11 @@ async fn main() -> Result<()> {
     let output_data = output_data?;
     let max_power = max_power?;
     let sunpos = sun::position(time);
-    println!("cover: {cloud_cover}, output data: {output_data:?}, max power: {max_power} on/off: {on_off:?}, sun: {sunpos:?}");
+    println!("weather: {weather:?}, output data: {output_data:?}, max power: {max_power} on/off: {on_off:?}, sun: {sunpos:?}");
 
     // insert data
     let db = db.await?;
-    db::insert(&db, cloud_cover, sunpos, output_data, max_power, time).await?;
+    db::insert(&db, weather, sunpos, output_data, max_power, time).await?;
 
     Ok(())
 }
