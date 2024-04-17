@@ -396,7 +396,7 @@ async fn main() -> Result<()> {
     let on_off = match inverter::on_off(&client).await {
         Err(e) => {
             if let Some(e) = e.downcast_ref::<reqwest::Error>() {
-                if e.is_connect() {
+                if e.is_connect() || e.is_timeout() {
                     println!("inverter is offline: {:?}", e);
                     return Ok(());
                 }
