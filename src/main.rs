@@ -329,8 +329,10 @@ mod db {
     ) -> Result<()> {
         use sea_orm::ActiveValue::{NotSet, Set};
 
-        let row = powerlog::ActiveModel {
+        let mut row = powerlog::ActiveModel {
+            // primary key, will be auto generated
             id: NotSet,
+
             time: Set(time),
 
             power_ch1: Set(output_data.channel1.power as f32),
@@ -341,32 +343,28 @@ mod db {
             energy_total_ch2: Set(output_data.channel2.energy_generation_lifetime as f32),
             max_power: Set(max_power as f32),
 
-            cloud_cover: weather
-                .as_ref()
-                .map_or(NotSet, |w| Set(w.cloud_cover / 100.0)),
-
-            terrestrial_radiation: weather
-                .as_ref()
-                .map_or(NotSet, |w| Set(w.terrestrial_radiation_instant)),
-            direct_radiation: weather
-                .as_ref()
-                .map_or(NotSet, |w| Set(w.direct_radiation_instant)),
-            diffuse_radiation: weather
-                .as_ref()
-                .map_or(NotSet, |w| Set(w.diffuse_radiation_instant)),
-            shortwave_radiation: weather
-                .as_ref()
-                .map_or(NotSet, |w| Set(w.shortwave_radiation_instant)),
-            direct_normal_irradiance: weather
-                .as_ref()
-                .map_or(NotSet, |w| Set(w.direct_normal_irradiance_instant)),
-            global_tilted_irradiance: weather
-                .as_ref()
-                .map_or(NotSet, |w| Set(w.global_tilted_irradiance_instant)),
+            // optional values, see below
+            cloud_cover: NotSet,
+            terrestrial_radiation: NotSet,
+            direct_radiation: NotSet,
+            diffuse_radiation: NotSet,
+            shortwave_radiation: NotSet,
+            direct_normal_irradiance: NotSet,
+            global_tilted_irradiance: NotSet,
 
             sun_azimuth: Set(sunpos.azimuth as f32),
             sun_altitude: Set(sunpos.altitude as f32),
         };
+
+        if let Some(weather) = weather {
+            row.cloud_cover = Set(weather.cloud_cover / 100.0);
+            row.terrestrial_radiation = Set(weather.terrestrial_radiation_instant);
+            row.direct_radiation = Set(weather.direct_radiation_instant);
+            row.diffuse_radiation = Set(weather.diffuse_radiation_instant);
+            row.shortwave_radiation = Set(weather.shortwave_radiation_instant);
+            row.direct_normal_irradiance = Set(weather.direct_normal_irradiance_instant);
+            row.global_tilted_irradiance = Set(weather.global_tilted_irradiance_instant);
+        }
 
         use sea_orm::ActiveModelTrait;
         row.insert(db).await?;
