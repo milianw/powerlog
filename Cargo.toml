@@ -17,3 +17,6 @@ env_logger = "0.11.3"
 sea-orm = { version = "0.12.15", features = ["sqlx-sqlite", "runtime-tokio-native-tls", "macros"] }
 time = { version = "0.3.36", features = ["std", "serde"] }
 sun = "0.2.0"
+axum = { version = "0.7.5", features = ["http2"] }
+axum-streams = { version = "0.14.2", features = ["json"] }
+futures = "0.3.30"
