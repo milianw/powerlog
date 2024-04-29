@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use anyhow::Result;
-use futures::Stream;
-use serde::Serialize;
 use std::sync::Arc;
 
 use axum::{
@@ -46,34 +44,11 @@ where
     }
 }
 
-#[derive(Clone, Serialize)]
-struct PowerToday {
-    time: String,
-    out1: f32,
-    produced1: f32,
-    out2: f32,
-    produced2: f32,
-}
-
-// Your possibly stream of objects
-fn power_today_stream() -> impl Stream<Item = PowerToday> {
-    // Simulating a stream with a plain vector
-    futures::stream::iter(vec![
-        PowerToday {
-            time: "Asdf".into(),
-            out1: 0.1,
-            produced1: 1.,
-            out2: 0.2,
-            produced2: 2.,
-        };
-        1000
-    ])
-}
-
-async fn power_today(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    StreamBodyAsOptions::new()
+async fn power_today(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse, AppError> {
+    let stream = db::select_power_today(&state.db).await?;
+    Ok(StreamBodyAsOptions::new()
         .buffering_ready_items(1000)
-        .json_array(power_today_stream())
+        .json_array(stream))
 }
 
 #[tokio::main]
