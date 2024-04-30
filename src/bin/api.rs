@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use aliasable::prelude::AliasableBox;
 use anyhow::Result;
 use std::sync::Arc;
 
@@ -44,11 +45,36 @@ where
     }
 }
 
+// see also: https://morestina.net/blog/1868/self-referential-types-for-fun-and-profit
+struct AsyncDbResponse {
+    // actually has lifetime of `db`
+    // declared first so it's droped before `db`
+    stream: StreamBodyAs<'static>,
+    #[allow(dead_code)]
+    db: AliasableBox<sea_orm::DatabaseConnection>,
+}
+
+impl IntoResponse for AsyncDbResponse {
+    fn into_response(self) -> Response {
+        self.stream.into_response()
+    }
+}
+
+fn to_aliasable(db: sea_orm::DatabaseConnection) -> AliasableBox<sea_orm::DatabaseConnection> {
+    AliasableBox::from_unique(Box::new(db))
+}
+
 async fn power_today(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse, AppError> {
-    let stream = db::select_power_today(&state.db).await?;
-    Ok(StreamBodyAsOptions::new()
+    let db = to_aliasable(state.db.clone());
+    let db_stream = db::select_power_today(db.as_ref()).await?;
+    let json_stream = StreamBodyAsOptions::new()
         .buffering_ready_items(1000)
-        .json_array(stream))
+        .json_array(db_stream);
+    let json_stream = unsafe { std::mem::transmute(json_stream) };
+    Ok(AsyncDbResponse {
+        stream: json_stream,
+        db,
+    })
 }
 
 #[tokio::main]
