@@ -258,7 +258,7 @@ pub mod sun {
 pub mod db {
     use anyhow::Result;
     use futures::StreamExt;
-    use sea_orm::ConnectionTrait;
+    use sea_orm::{ConnectionTrait, FromQueryResult};
     use serde::Serialize;
 
     mod powerlog {
@@ -376,13 +376,13 @@ pub mod db {
         Ok(())
     }
 
-    #[derive(Serialize)]
+    #[derive(FromQueryResult, Serialize)]
     pub struct PowerToday {
-        time: i64,
-        out1: f32,
-        produced1: f32,
-        out2: f32,
-        produced2: f32,
+        time: time::OffsetDateTime,
+        power_ch1: f32,
+        power_ch2: f32,
+        energy_today_ch1: f32,
+        energy_today_ch2: f32,
     }
 
     pub async fn select_power_today(
@@ -400,19 +400,10 @@ pub mod db {
                 powerlog::Column::EnergyTodayCh1,
                 powerlog::Column::EnergyTodayCh2,
             ])
+            .into_model::<PowerToday>()
             .stream(db)
             .await?
-            .map(|row| {
-                // FIXME: how do I not use unwrap here?
-                let row = row.unwrap();
-                PowerToday {
-                    time: row.time.unix_timestamp(),
-                    out1: row.power_ch1,
-                    produced1: row.energy_today_ch1,
-                    out2: row.power_ch2,
-                    produced2: row.energy_today_ch2,
-                }
-            });
+            .map(|row| row.unwrap());
 
         Ok(stream)
     }
