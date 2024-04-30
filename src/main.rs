@@ -41,9 +41,10 @@ async fn main() -> Result<()> {
     // access inverter API
     let client_copy = client.clone();
     let inverter_requests = tokio::spawn(async move {
-        (
-            inverter::output_data(&client_copy).await,
-            inverter::max_power(&client_copy).await,
+        use futures::join;
+        join!(
+            inverter::output_data(&client_copy),
+            inverter::max_power(&client_copy)
         )
     });
 
