@@ -388,8 +388,10 @@ pub mod db {
     pub async fn select_power_today(
         db: &sea_orm::DatabaseConnection,
     ) -> Result<impl futures::stream::Stream<Item = PowerToday> + '_> {
-        use sea_orm::EntityTrait;
-        use sea_orm::QuerySelect;
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
+
+        let today = time::OffsetDateTime::now_utc().date();
+        let today = time::OffsetDateTime::new_utc(today, time::Time::from_hms(0, 0, 0).unwrap());
 
         let stream = powerlog::Entity::find()
             .select_only()
@@ -400,6 +402,7 @@ pub mod db {
                 powerlog::Column::EnergyTodayCh1,
                 powerlog::Column::EnergyTodayCh2,
             ])
+            .filter(powerlog::Column::Time.gte(today))
             .into_model::<PowerToday>()
             .stream(db)
             .await?
