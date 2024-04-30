@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 mod config {
     pub const LATITUDE: f64 = 52.500;
     pub const LONGITUDE: f64 = 13.493;
