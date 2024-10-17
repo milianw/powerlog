@@ -3,7 +3,7 @@
 use aliasable::prelude::AliasableBox;
 use anyhow::Result;
 use std::sync::Arc;
-use tower_http::{compression::CompressionLayer, cors::CorsLayer};
+use tower_http::compression::CompressionLayer;
 
 use axum::{
     extract::State,
@@ -121,7 +121,6 @@ async fn main() -> Result<()> {
         .route("/generatedByHourToday", get(generated_by_hour_today))
         .route("/generatedByDay", get(generated_by_day))
         .layer(CompressionLayer::new())
-        .layer(CorsLayer::permissive())
         .with_state(shared_state);
 
     // run our app with hyper, listening locally on port 3000
