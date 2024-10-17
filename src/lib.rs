@@ -411,4 +411,67 @@ pub mod db {
 
         Ok(stream)
     }
+
+    #[derive(FromQueryResult, Serialize)]
+    pub struct GeneratedByHour {
+        hour: String,
+        ch1: Option<f32>,
+        ch2: Option<f32>,
+    }
+
+    pub async fn select_generated_by_hour_today(
+        db: &sea_orm::DatabaseConnection,
+    ) -> Result<impl futures::stream::Stream<Item = GeneratedByHour> + '_> {
+        use sea_orm::{DbBackend, EntityTrait, Statement};
+
+        let query = r#"SELECT
+                strftime('%H', time) AS hour,
+                (MAX(energy_total_ch1) - (lag(energy_total_ch1) OVER win)) as ch1,
+                (MAX(energy_total_ch2) - (lag(energy_total_ch2) OVER win)) as ch2
+            FROM powerlog
+            WHERE time > date('now')
+            GROUP BY hour
+            WINDOW win AS (ROWS 1 PRECEDING)"#;
+
+        let stream = powerlog::Entity::find()
+            .from_raw_sql(Statement::from_string(DbBackend::Sqlite, query))
+            .into_model::<GeneratedByHour>()
+            .stream(db)
+            .await?
+            .map(|row| row.unwrap());
+
+        Ok(stream)
+    }
+
+    #[derive(FromQueryResult, Serialize)]
+    pub struct GeneratedByDay {
+        date: String,
+        ch1: Option<f32>,
+        ch2: Option<f32>,
+    }
+
+    pub async fn select_generated_by_day(
+        db: &sea_orm::DatabaseConnection,
+    ) -> Result<impl futures::stream::Stream<Item = GeneratedByDay> + '_> {
+        use sea_orm::{DbBackend, EntityTrait, Statement};
+
+        let query = r#"SELECT
+                date(time) AS date,
+                (MAX(energy_total_ch1) - (lag(energy_total_ch1, 1, 0) OVER win)) as ch1,
+                (MAX(energy_total_ch2) - (lag(energy_total_ch2, 1, 0) OVER win)) as ch2
+            FROM powerlog
+            GROUP BY date
+            WINDOW win AS (ROWS 1 PRECEDING)
+            ORDER BY date ASC"#;
+
+        let stream = powerlog::Entity::find()
+            .from_raw_sql(Statement::from_string(DbBackend::Sqlite, query))
+            .into_model::<GeneratedByDay>()
+            .stream(db)
+            .await?
+            .map(|row| row.unwrap());
+
+        Ok(stream)
+    }
+
 }

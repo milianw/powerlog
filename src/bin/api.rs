@@ -78,6 +78,36 @@ async fn power_today(State(state): State<Arc<AppState>>) -> Result<impl IntoResp
     })
 }
 
+async fn generated_by_hour_today(
+    State(state): State<Arc<AppState>>,
+) -> Result<impl IntoResponse, AppError> {
+    let db = to_aliasable(state.db.clone());
+    let db_stream = db::select_generated_by_hour_today(db.as_ref()).await?;
+    let json_stream = StreamBodyAsOptions::new()
+        .buffering_ready_items(1000)
+        .json_array(db_stream);
+    let json_stream = unsafe { std::mem::transmute(json_stream) };
+    Ok(AsyncDbResponse {
+        stream: json_stream,
+        db,
+    })
+}
+
+async fn generated_by_day(
+    State(state): State<Arc<AppState>>,
+) -> Result<impl IntoResponse, AppError> {
+    let db = to_aliasable(state.db.clone());
+    let db_stream = db::select_generated_by_day(db.as_ref()).await?;
+    let json_stream = StreamBodyAsOptions::new()
+        .buffering_ready_items(1000)
+        .json_array(db_stream);
+    let json_stream = unsafe { std::mem::transmute(json_stream) };
+    Ok(AsyncDbResponse {
+        stream: json_stream,
+        db,
+    })
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
@@ -88,6 +118,8 @@ async fn main() -> Result<()> {
     // build our application with a single route
     let app = Router::new()
         .route("/powerToday", get(power_today))
+        .route("/generatedByHourToday", get(generated_by_hour_today))
+        .route("/generatedByDay", get(generated_by_day))
         .layer(CompressionLayer::new())
         .layer(CorsLayer::permissive())
         .with_state(shared_state);
