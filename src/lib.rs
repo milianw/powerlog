@@ -378,6 +378,7 @@ pub mod db {
 
     #[derive(FromQueryResult, Serialize)]
     pub struct PowerToday {
+        #[serde(with = "time::serde::iso8601")]
         time: time::OffsetDateTime,
         power_ch1: f32,
         power_ch2: f32,
