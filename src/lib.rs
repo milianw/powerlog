@@ -398,32 +398,29 @@ pub mod db {
         power_ch2: f32,
         energy_today_ch1: f32,
         energy_today_ch2: f32,
+
+        energy_total_ch1: f32,
+        energy_total_ch2: f32,
+
+        max_power: f32,
+
+        cloud_cover: Option<f32>,
+
+        pub terrestrial_radiation: Option<f32>,
+        pub direct_radiation: Option<f32>,
+        pub diffuse_radiation: Option<f32>,
+        pub shortwave_radiation: Option<f32>,
+        pub direct_normal_irradiance: Option<f32>,
+        pub global_tilted_irradiance: Option<f32>,
+
+        pub sun_azimuth: f32,
+        pub sun_altitude: f32,
     }
 
     pub async fn select_power_today(
         db: &sea_orm::DatabaseConnection,
     ) -> Result<impl futures::stream::Stream<Item = PowerToday> + '_> {
-        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
-
-        let today = time::OffsetDateTime::now_utc().date();
-        let today = time::OffsetDateTime::new_utc(today, time::Time::from_hms(0, 0, 0).unwrap());
-
-        let stream = powerlog::Entity::find()
-            .select_only()
-            .columns([
-                powerlog::Column::Time,
-                powerlog::Column::PowerCh1,
-                powerlog::Column::PowerCh2,
-                powerlog::Column::EnergyTodayCh1,
-                powerlog::Column::EnergyTodayCh2,
-            ])
-            .filter(powerlog::Column::Time.gte(today))
-            .into_model::<PowerToday>()
-            .stream(db)
-            .await?
-            .map(|row| row.unwrap());
-
-        Ok(stream)
+        stream_select::<PowerToday>(db, r#"SELECT * FROM powerlog WHERE time > date('now')"#).await
     }
 
     #[derive(FromQueryResult, Serialize)]
