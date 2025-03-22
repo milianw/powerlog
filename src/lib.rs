@@ -258,7 +258,7 @@ pub mod sun {
 pub mod db {
     use anyhow::Result;
     use futures::StreamExt;
-    use sea_orm::{ConnectionTrait, FromQueryResult, DbBackend, EntityTrait, Statement};
+    use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, FromQueryResult, Statement};
     use serde::Serialize;
 
     mod powerlog {
@@ -376,9 +376,12 @@ pub mod db {
         Ok(())
     }
 
-    async fn stream_select<'a, T>(db: &'a sea_orm::DatabaseConnection, query: &str)
-     -> Result<impl futures::stream::Stream<Item = T> + 'a>
-     where T: FromQueryResult + Send + 'a
+    async fn stream_select<'a, T>(
+        db: &'a sea_orm::DatabaseConnection,
+        query: &str,
+    ) -> Result<impl futures::stream::Stream<Item = T> + 'a>
+    where
+        T: FromQueryResult + Send + 'a,
     {
         let stream = powerlog::Entity::find()
             .from_raw_sql(Statement::from_string(DbBackend::Sqlite, query))
@@ -433,14 +436,18 @@ pub mod db {
     pub async fn select_generated_by_hour_today(
         db: &sea_orm::DatabaseConnection,
     ) -> Result<impl futures::stream::Stream<Item = GeneratedByHour> + '_> {
-        stream_select::<GeneratedByHour>(db, r#"SELECT
+        stream_select::<GeneratedByHour>(
+            db,
+            r#"SELECT
                 strftime('%H', time) AS hour,
                 (MAX(energy_total_ch1) - (lag(energy_total_ch1) OVER win)) as ch1,
                 (MAX(energy_total_ch2) - (lag(energy_total_ch2) OVER win)) as ch2
             FROM powerlog
             WHERE time > date('now')
             GROUP BY hour
-            WINDOW win AS (ROWS 1 PRECEDING)"#).await
+            WINDOW win AS (ROWS 1 PRECEDING)"#,
+        )
+        .await
     }
 
     #[derive(FromQueryResult, Serialize)]
@@ -453,14 +460,17 @@ pub mod db {
     pub async fn select_generated_by_day(
         db: &sea_orm::DatabaseConnection,
     ) -> Result<impl futures::stream::Stream<Item = GeneratedByDay> + '_> {
-        stream_select::<GeneratedByDay>(db, r#"SELECT
+        stream_select::<GeneratedByDay>(
+            db,
+            r#"SELECT
                 date(time) AS date,
                 (MAX(energy_total_ch1) - (lag(energy_total_ch1, 1, 0) OVER win)) as ch1,
                 (MAX(energy_total_ch2) - (lag(energy_total_ch2, 1, 0) OVER win)) as ch2
             FROM powerlog
             GROUP BY date
             WINDOW win AS (ROWS 1 PRECEDING)
-            ORDER BY date ASC"#).await
+            ORDER BY date ASC"#,
+        )
+        .await
     }
-
 }

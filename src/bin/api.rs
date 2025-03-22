@@ -6,11 +6,11 @@ use std::sync::Arc;
 use tower_http::compression::CompressionLayer;
 
 use axum::{
+    Router,
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
-    Router,
 };
 
 use axum_streams::*;

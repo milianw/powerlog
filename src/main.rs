@@ -70,7 +70,9 @@ async fn main() -> Result<()> {
     let output_data = output_data?;
     let max_power = max_power?;
     let sunpos = sun::position(time);
-    println!("weather: {weather:?}, output data: {output_data:?}, max power: {max_power} on/off: {on_off:?}, sun: {sunpos:?}");
+    println!(
+        "weather: {weather:?}, output data: {output_data:?}, max power: {max_power} on/off: {on_off:?}, sun: {sunpos:?}"
+    );
 
     // insert data
     let db = db.await?;
