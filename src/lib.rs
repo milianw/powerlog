@@ -379,7 +379,7 @@ pub mod db {
     async fn stream_select<'a, T>(
         db: &'a sea_orm::DatabaseConnection,
         query: &str,
-    ) -> Result<impl futures::stream::Stream<Item = T> + 'a>
+    ) -> Result<impl futures::stream::Stream<Item = T> + 'a + use<'a, T>>
     where
         T: FromQueryResult + Send + 'a,
     {
