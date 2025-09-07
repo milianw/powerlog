@@ -74,6 +74,17 @@ async fn main() -> Result<()> {
         "weather: {weather:?}, output data: {output_data:?}, max power: {max_power} on/off: {on_off:?}, sun: {sunpos:?}"
     );
 
+    // Fixup bogus data, the channel counter reset at 2025-08-31T15:00:01.561151476Z in the hardware for some reason
+    // and now reports new values starting at zero again, breaking our analysis as we expect monotonically increasing
+    // values. We now manually add some value here below and I fixed the database manually via
+    //
+    //   UPDATE powerlog SET energy_total_ch2 = energy_total_ch2 + 540.606323242188 WHERE time > '2025-08-31T15:00:01' AND energy_total_ch2 < 500;
+    let output_data = {
+        let mut fixed = output_data;
+        fixed.channel2.energy_generation_lifetime += 540.606323242188;
+        fixed
+    };
+
     // insert data
     let db = db.await?;
     db::insert(&db, weather, sunpos, output_data, max_power, time).await?;
